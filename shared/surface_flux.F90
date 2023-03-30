@@ -178,7 +178,7 @@ real :: bulk_zt                           !< Reference height for atm temperatur
 real :: bulk_zq                           !< Reference height for atm humidity
 logical :: raoult_sat_vap        = .false. !< Reduce saturation vapor pressure to account for seawater
 logical :: do_simple             = .false.
-
+real    :: sw                    = 0.0    !< Modify effect of current on wind  
 
 namelist /surface_flux_nml/ no_neg_q,                   &
                             use_virtual_temp,           &
@@ -194,7 +194,8 @@ namelist /surface_flux_nml/ no_neg_q,                   &
                             bulk_zt,                    &
                             bulk_zq,                    &
                             raoult_sat_vap,             &
-                            do_simple
+                            do_simple,                  &
+                            sw
 
 
 
@@ -329,8 +330,8 @@ subroutine surface_flux_1d (                                           &
      thv_surf= t_surf0 * (1.0 + d608*q_surf0 ) ! surface virtual (potential) T
 !     thv_surf= t_surf0                        ! surface virtual (potential) T -- just for testing tun off the q_surf
 
-     u_dif = u_surf - u_atm                    ! velocity components relative to surface
-     v_dif = v_surf - v_atm
+     u_dif = (1 - sw) * u_surf - u_atm                    ! velocity components relative to surface
+     v_dif = (1 - sw) * v_surf - v_atm
   endwhere
 
   if(alt_gustiness) then
