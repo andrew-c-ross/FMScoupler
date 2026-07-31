@@ -155,6 +155,9 @@ use FMSconstants, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, 
   real    :: z_ref_heat =  2. !< Reference height (meters) for temperature and relative humidity diagnostics
                               !! (t_ref, rh_ref, del_h, del_q)
   real    :: z_ref_mom  = 10. !< Reference height (meters) for mementum diagnostics (u_ref, v_ref, del_m)
+  real :: wind_scale_start = 0.0 !< Apply scaling to wind speeds above this value
+  real :: wind_scale_a = 0.0 !< Multiply winds in excess of wind_scale_start by this value
+  real :: wind_scale_b = 1.0 !< Exponent applied to winds in excess of wind_scale_start
   logical :: do_area_weighted_flux = .FALSE.
   logical :: do_forecast = .false.
   integer :: nblocks = 1
@@ -298,6 +301,7 @@ contains
   !!    The latitude from file grid_spec.nc is different from the latitude from atmosphere model.
   subroutine atm_land_ice_flux_exchange_init(Time, Atm, Land, Ice, atmos_ice_boundary, land_ice_atmos_boundary, &
                                              Dt_atm_in, Dt_cpl_in, z_ref_heat_in, z_ref_mom_in,                 &
+                                             wind_scale_start_in, wind_scale_a_in, wind_scale_b_in, &
                                              do_area_weighted_flux_in,  &
                                              do_forecast_in, partition_fprec_from_lprec_in, scale_precip_2d_in, &
                                              nblocks_in, cplClock_in, ex_gas_fields_atm_in, &
@@ -315,6 +319,7 @@ contains
     real,                 intent(in)    :: Dt_atm_in !< Atmosphere time step in seconds
     real,                 intent(in)    :: Dt_cpl_in !< Coupled time step in seconds
     real,                 intent(in)    :: z_ref_heat_in, z_ref_mom_in
+    real,                 intent(in)    :: wind_scale_start_in, wind_scale_a_in, wind_scale_b_in
     logical,              intent(in)    :: scale_precip_2d_in
     logical,              intent(in)    :: do_area_weighted_flux_in
     logical,              intent(in)    :: do_forecast_in, partition_fprec_from_lprec_in
@@ -339,6 +344,9 @@ contains
     Dt_cpl = Dt_cpl_in
     z_ref_heat = z_ref_heat_in
     z_ref_mom = z_ref_mom_in
+    wind_scale_start = wind_scale_start_in
+    wind_scale_a = wind_scale_a_in
+    wind_scale_b = wind_scale_b_in
     do_area_weighted_flux = do_area_weighted_flux_in
     do_forecast = do_forecast_in
     partition_fprec_from_lprec = partition_fprec_from_lprec_in
@@ -753,6 +761,8 @@ contains
     integer :: isc,iec,jsc,jec
     integer :: n_gex
 
+    real, dimension(size(Atm%u_bot, 1), size(Atm%u_bot, 2)) :: wspeed, wscaling
+
     real, dimension(n_xgrid_sfc,n_gex_lnd2atm) ::  ex_gex_lnd2atm
 
     ! [1] check that the module was initialized
@@ -896,6 +906,19 @@ contains
     call fms_data_override ('ATM', 'p_surf', Atm%p_surf, Time)
     call fms_data_override ('ATM', 'slp',    Atm%slp,    Time)
     call fms_data_override ('ATM', 'gust',   Atm%gust,   Time)
+
+    if(wind_scale_start > 0.0) then
+      wspeed = hypot(Atm%u_bot, Atm%v_bot)
+      where(wspeed > wind_scale_start)
+         wscaling = wind_scale_a * ((wspeed - wind_scale_start)**wind_scale_b)
+      elsewhere
+         wscaling = 0.0
+      endwhere
+      Atm%u_bot = Atm%u_bot + wscaling
+      Atm%v_bot = Atm%v_bot + wscaling
+    endif
+
+
     !
     ! jgj: 2008/07/18
     ! FV atm advects tracers in moist mass mixing ratio: kg co2 /(kg air + kg water)
