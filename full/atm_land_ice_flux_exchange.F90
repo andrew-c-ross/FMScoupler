@@ -155,7 +155,7 @@ use FMSconstants, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, 
   real    :: z_ref_heat =  2. !< Reference height (meters) for temperature and relative humidity diagnostics
                               !! (t_ref, rh_ref, del_h, del_q)
   real    :: z_ref_mom  = 10. !< Reference height (meters) for mementum diagnostics (u_ref, v_ref, del_m)
-  real :: wind_scale_start = 0.0 !< Apply scaling to wind speeds above this value
+  real :: wind_scale_start = -1.0 !< Apply scaling to wind speeds above this value. Negative values disable.
   real :: wind_scale_a = 0.0 !< Multiply winds in excess of wind_scale_start by this value
   real :: wind_scale_b = 1.0 !< Exponent applied to winds in excess of wind_scale_start
   logical :: do_area_weighted_flux = .FALSE.
@@ -907,7 +907,7 @@ contains
     call fms_data_override ('ATM', 'slp',    Atm%slp,    Time)
     call fms_data_override ('ATM', 'gust',   Atm%gust,   Time)
 
-    if(wind_scale_start > 0.0) then
+    if(wind_scale_start >= 0.0) then
       wspeed = hypot(Atm%u_bot, Atm%v_bot)
       where(wspeed > wind_scale_start)
          wscaling = wind_scale_a * ((wspeed - wind_scale_start)**wind_scale_b)
