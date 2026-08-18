@@ -155,6 +155,7 @@ use FMSconstants, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, 
   real    :: z_ref_heat =  2. !< Reference height (meters) for temperature and relative humidity diagnostics
                               !! (t_ref, rh_ref, del_h, del_q)
   real    :: z_ref_mom  = 10. !< Reference height (meters) for mementum diagnostics (u_ref, v_ref, del_m)
+  character(len=1) :: wind_scale_form = 'a' !< Type of wind adjustment to apply (a=add, r=replace)
   real :: wind_scale_start = -1.0 !< Apply scaling to wind speeds above this value. Negative values disable.
   real :: wind_scale_a = 0.0 !< Multiply winds in excess of wind_scale_start by this value
   real :: wind_scale_b = 1.0 !< Exponent applied to winds in excess of wind_scale_start
@@ -301,7 +302,7 @@ contains
   !!    The latitude from file grid_spec.nc is different from the latitude from atmosphere model.
   subroutine atm_land_ice_flux_exchange_init(Time, Atm, Land, Ice, atmos_ice_boundary, land_ice_atmos_boundary, &
                                              Dt_atm_in, Dt_cpl_in, z_ref_heat_in, z_ref_mom_in,                 &
-                                             wind_scale_start_in, wind_scale_a_in, wind_scale_b_in, &
+                                             wind_scale_form_in, wind_scale_start_in, wind_scale_a_in, wind_scale_b_in, &
                                              do_area_weighted_flux_in,  &
                                              do_forecast_in, partition_fprec_from_lprec_in, scale_precip_2d_in, &
                                              nblocks_in, cplClock_in, ex_gas_fields_atm_in, &
@@ -319,6 +320,7 @@ contains
     real,                 intent(in)    :: Dt_atm_in !< Atmosphere time step in seconds
     real,                 intent(in)    :: Dt_cpl_in !< Coupled time step in seconds
     real,                 intent(in)    :: z_ref_heat_in, z_ref_mom_in
+    character(len=1),     intent(in)    :: wind_scale_form_in
     real,                 intent(in)    :: wind_scale_start_in, wind_scale_a_in, wind_scale_b_in
     logical,              intent(in)    :: scale_precip_2d_in
     logical,              intent(in)    :: do_area_weighted_flux_in
@@ -344,6 +346,7 @@ contains
     Dt_cpl = Dt_cpl_in
     z_ref_heat = z_ref_heat_in
     z_ref_mom = z_ref_mom_in
+    wind_scale_form = fms_mpp_lowercase(wind_scale_form_in)
     wind_scale_start = wind_scale_start_in
     wind_scale_a = wind_scale_a_in
     wind_scale_b = wind_scale_b_in
@@ -761,7 +764,7 @@ contains
     integer :: isc,iec,jsc,jec
     integer :: n_gex
 
-    real, dimension(size(Atm%u_bot, 1), size(Atm%u_bot, 2)) :: wspeed, wscaling
+    real, dimension(size(Atm%u_bot, 1), size(Atm%u_bot, 2)) :: wspeed, wspeed_adj
 
     real, dimension(n_xgrid_sfc,n_gex_lnd2atm) ::  ex_gex_lnd2atm
 
@@ -909,15 +912,23 @@ contains
 
     if(wind_scale_start >= 0.0) then
       wspeed = hypot(Atm%u_bot, Atm%v_bot)
+      wspeed_adj = wspeed ! to be safe
+      if(wind_scale_form .eq. 'a') then
+         where(wspeed > wind_scale_start)
+            wspeed_adj = wspeed + wind_scale_a * ((wspeed - wind_scale_start)**wind_scale_b)
+         endwhere
+      elseif(wind_scale_form .eq. 'r') then
+         where(wspeed > wind_scale_start)
+            wspeed_adj = wind_scale_start + wind_scale_a * ((wspeed - wind_scale_start)**wind_scale_b)
+         endwhere
+      else
+         call fms_error_mesg('atm_land_ice_flux_exchange_mod', 'Unrecognized wind_scale_form', FATAL)
+      endif
       where(wspeed > wind_scale_start)
-         wscaling = wind_scale_a * ((wspeed - wind_scale_start)**wind_scale_b)
-      elsewhere
-         wscaling = 0.0
+         Atm%u_bot = Atm%u_bot * (wspeed_adj / wspeed)
+         Atm%v_bot = Atm%v_bot * (wspeed_adj / wspeed)
       endwhere
-      Atm%u_bot = Atm%u_bot + wscaling
-      Atm%v_bot = Atm%v_bot + wscaling
     endif
-
 
     !
     ! jgj: 2008/07/18
