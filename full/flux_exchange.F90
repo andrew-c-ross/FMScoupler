@@ -555,9 +555,10 @@ module flux_exchange_mod
                            !! (t_ref, rh_ref, del_h, del_q)
   real :: z_ref_mom  = 10. !< Reference height (meters) for mementum diagnostics (u_ref, v_ref, del_m)
   character(len=1) :: wind_scale_form = 'a' !< Type of wind adjustment to apply (a=add, r=replace)
-  real :: wind_scale_start = 0.0
+  real :: wind_scale_start = -1.0
   real :: wind_scale_a = 0.0
   real :: wind_scale_b = 1.0
+  real :: wind_scale_max = -1.0
 
   logical :: do_area_weighted_flux = .FALSE.
   logical :: debug_stocks = .FALSE.
@@ -573,7 +574,7 @@ module flux_exchange_mod
   logical :: scale_precip_2d = .false.
 
   namelist /flux_exchange_nml/ z_ref_heat, z_ref_mom, wind_scale_form, wind_scale_start, wind_scale_a, wind_scale_b,&
-       & do_area_weighted_flux, debug_stocks, divert_stocks_report, do_runoff, do_forecast, nblocks,&
+       & wind_scale_max, do_area_weighted_flux, debug_stocks, divert_stocks_report, do_runoff, do_forecast, nblocks,&
        & partition_fprec_from_lprec, scale_precip_2d
 
   logical :: gas_fluxes_initialized = .false.  ! This is set to true when the following types are initialized.
@@ -748,7 +749,7 @@ contains
        call atm_land_ice_flux_exchange_init(Time, Atm, Land, Ice, atmos_ice_boundary, land_ice_atmos_boundary, &
             Dt_atm, Dt_cpl, z_ref_heat, z_ref_mom, &
             wind_scale_form, wind_scale_start, wind_scale_a, wind_scale_b,  &
-            do_area_weighted_flux, do_forecast,  &
+            wind_scale_max, do_area_weighted_flux, do_forecast,  &
             partition_fprec_from_lprec, scale_precip_2d, nblocks, cplClock, &
             ex_gas_fields_atm, ex_gas_fields_ice, ex_gas_fluxes)
 

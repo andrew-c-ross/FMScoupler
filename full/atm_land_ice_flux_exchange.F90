@@ -159,6 +159,7 @@ use FMSconstants, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, 
   real :: wind_scale_start = -1.0 !< Apply scaling to wind speeds above this value. Negative values disable.
   real :: wind_scale_a = 0.0 !< Multiply winds in excess of wind_scale_start by this value
   real :: wind_scale_b = 1.0 !< Exponent applied to winds in excess of wind_scale_start
+  real :: wind_scale_max = -1.0 !< If the wind is adjusted, don't let it exceed this value.
   logical :: do_area_weighted_flux = .FALSE.
   logical :: do_forecast = .false.
   integer :: nblocks = 1
@@ -302,8 +303,8 @@ contains
   !!    The latitude from file grid_spec.nc is different from the latitude from atmosphere model.
   subroutine atm_land_ice_flux_exchange_init(Time, Atm, Land, Ice, atmos_ice_boundary, land_ice_atmos_boundary, &
                                              Dt_atm_in, Dt_cpl_in, z_ref_heat_in, z_ref_mom_in,                 &
-                                             wind_scale_form_in, wind_scale_start_in, wind_scale_a_in, wind_scale_b_in, &
-                                             do_area_weighted_flux_in,  &
+                                             wind_scale_form_in, wind_scale_start_in, wind_scale_a_in,  &
+                                             wind_scale_b_in, wind_scale_max_in, do_area_weighted_flux_in,  &
                                              do_forecast_in, partition_fprec_from_lprec_in, scale_precip_2d_in, &
                                              nblocks_in, cplClock_in, ex_gas_fields_atm_in, &
                                              ex_gas_fields_ice_in, ex_gas_fluxes_in)
@@ -321,7 +322,7 @@ contains
     real,                 intent(in)    :: Dt_cpl_in !< Coupled time step in seconds
     real,                 intent(in)    :: z_ref_heat_in, z_ref_mom_in
     character(len=1),     intent(in)    :: wind_scale_form_in
-    real,                 intent(in)    :: wind_scale_start_in, wind_scale_a_in, wind_scale_b_in
+    real,                 intent(in)    :: wind_scale_start_in, wind_scale_a_in, wind_scale_b_in, wind_scale_max_in
     logical,              intent(in)    :: scale_precip_2d_in
     logical,              intent(in)    :: do_area_weighted_flux_in
     logical,              intent(in)    :: do_forecast_in, partition_fprec_from_lprec_in
@@ -350,6 +351,7 @@ contains
     wind_scale_start = wind_scale_start_in
     wind_scale_a = wind_scale_a_in
     wind_scale_b = wind_scale_b_in
+    wind_scale_max = wind_scale_max_in
     do_area_weighted_flux = do_area_weighted_flux_in
     do_forecast = do_forecast_in
     partition_fprec_from_lprec = partition_fprec_from_lprec_in
@@ -928,6 +930,12 @@ contains
          Atm%u_bot = Atm%u_bot * (wspeed_adj / wspeed)
          Atm%v_bot = Atm%v_bot * (wspeed_adj / wspeed)
       endwhere
+      if(wind_scale_max >= 0.0) then
+         where(wspeed > wind_scale_start .and. wspeed > wind_scale_max)
+            Atm%u_bot = Atm%u_bot * (wind_scale_max / wspeed)
+            Atm%v_bot = Atm%v_bot * (wind_scale_max / wspeed)
+         endwhere
+      endif
     endif
 
     !
